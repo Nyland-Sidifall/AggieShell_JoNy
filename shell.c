@@ -53,9 +53,177 @@ void printDir()
 	printf("\nDir: %s", cwd); 
 } 
 
-// Function where the system command is executed 
-void execArgs(char** parsed) 
+// Help command builtin 
+void openHelp() 
 { 
+	puts("\n***WELCOME TO AGGIE SHELL***"
+		"\nList of Commands supported:"
+		"\n>cd"
+		"\n>ls"
+		"\n>exit"
+		"\n>all other general commands available in UNIX shell"
+		"\n>pipe handling"
+		"\n>improper space handling"); 
+
+	return; 
+} 
+
+// Function to execute builtin commands 
+int ownCmdHandler(char** parsed) 
+{ 
+	int NoOfOwnCmds = 4, i, switchOwnArg = 0; 
+	char* ListOfOwnCmds[NoOfOwnCmds]; 
+	char* username; 
+
+	ListOfOwnCmds[0] = "exit"; 
+	ListOfOwnCmds[1] = "cd"; 
+	ListOfOwnCmds[2] = "help"; 
+	ListOfOwnCmds[3] = "hello"; 
+
+	for (i = 0; i < NoOfOwnCmds; i++) { 
+		if (strcmp(parsed[0], ListOfOwnCmds[i]) == 0) { 
+			switchOwnArg = i + 1; 
+			break; 
+		} 
+	} 
+
+	switch (switchOwnArg) { 
+	case 1: 
+		printf("\nGoodbye\n"); 
+		exit(0); 
+	case 2: 
+		//Add check to see if user inserted cd.. to go back to main dir
+		chdir(parsed[1]); 
+		return 1; 
+	case 3: 
+		openHelp(); 
+		return 1; 
+	case 4: 
+		username = getenv("USER"); 
+		printf("\nHello %s.\nMind that this is "
+			"not a place to play around."
+			"\nUse help to know more..\n", 
+			username); 
+		return 1; 
+	default: 
+		break; 
+	} 
+	return 0; 
+} 
+
+// function for finding pipe 
+int parsePipe(char* str, char** strpiped) 
+{ 
+	int i; 
+	for (i = 0; i < 2; i++) { 
+		strpiped[i] = strsep(&str, "|"); 
+		if (strpiped[i] == NULL) 
+			break; 
+	} 
+	if (strpiped[1] == NULL) 
+		return 0; // returns zero if no pipe is found. 
+	else { 
+		return 1; 
+	} 
+} 
+
+//Check for input redirection
+int redirect_input(char **parsed, char **input_filename) {
+  int i;
+  int j;
+
+  for(i = 0; parsed[i] != NULL; i++) {
+
+    // Look for the <
+    if(parsed[i][0] == '<') {
+      free(parsed[i]);
+
+      // Read the filename
+      if(parsed[i+1] != NULL) {
+	*input_filename = parsed[i+1];
+      } else {
+	return -1;
+      }
+      // Adjust the rest of the arguments in the array
+      for(j = i; parsed[j-1] != NULL; j++) {
+	parsed[j] = parsed[j+2];
+      }
+
+      return 1;
+    }
+  }
+  return 0;
+}
+
+//Check for output redirection
+int redirect_output(char **parsed, char **output_filename) {
+  int i;
+  int j;
+
+  for(i = 0; parsed[i] != NULL; i++) {
+
+    // Look for the >
+    if(parsed[i][0] == '>') {
+      free(parsed[i]);
+
+      // Get the filename 
+      if(parsed[i+1] != NULL) {
+	*output_filename = parsed[i+1];
+      } else {
+	return -1;
+      }
+
+      // Adjust the rest of the arguments in the array
+      for(j = i; parsed[j-1] != NULL; j++) {
+	parsed[j] = parsed[j+2];
+      }
+
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
+//Check for ampersand as last argument
+int ampersand(char **parsed) {
+  int i;
+
+  for(i = 1; parsed[i] != NULL; i++) ;
+
+  if(parsed[i-1][0] == '&') {
+    free(parsed[i-1]);
+    parsed[i-1] = NULL;
+    return 1;
+  } else {
+    return 0;
+  }
+  
+  return 0;
+}
+
+// function for parsing command words 
+void parseSpace(char* str, char** parsed) 
+{ 
+	int i; 
+
+	for (i = 0; i < MAXLIST; i++) { 
+		parsed[i] = strsep(&str, " "); 
+
+		if (parsed[i] == NULL) 
+			break; 
+		if (strlen(parsed[i]) == 0) 
+			i--; 
+	} 
+} 
+
+// Function where the system command is executed 
+void execArgs(char **parsed, int block,
+	       int input, char *input_filename,
+	       int output, char *output_filename) 
+{ 
+	int result;
+
 	// Forking a child 
 	pid_t pid = fork(); 
 
@@ -63,9 +231,17 @@ void execArgs(char** parsed)
 		printf("\nFailed forking child.."); 
 		return; 
 	} else if (pid == 0) { 
-		if (execvp(parsed[0], parsed) < 0) { 
+		if(input){
+			freopen(input_filename, "r", stdin);
+		}
+    	if(output){
+			freopen(output_filename, "w+", stdout);
+		}
+		result = execvp(parsed[0], parsed);
+		if (result < 0) { 
 			printf("\nCould not execute command.."); 
 		} 
+		
 		exit(0); 
 	} else { 
 		// waiting for child to terminate 
@@ -129,104 +305,11 @@ void execArgsPiped(char** parsed, char** parsedpipe)
 	} 
 } 
 
-// Help command builtin 
-void openHelp() 
-{ 
-	puts("\n***WELCOME TO MY SHELL HELP***"
-		"\nCopyright @ Suprotik Dey"
-		"\n-Use the shell at your own risk..."
-		"\nList of Commands supported:"
-		"\n>cd"
-		"\n>ls"
-		"\n>exit"
-		"\n>all other general commands available in UNIX shell"
-		"\n>pipe handling"
-		"\n>improper space handling"); 
-
-	return; 
-} 
-
-// Function to execute builtin commands 
-int ownCmdHandler(char** parsed) 
-{ 
-	int NoOfOwnCmds = 4, i, switchOwnArg = 0; 
-	char* ListOfOwnCmds[NoOfOwnCmds]; 
-	char* username; 
-
-	ListOfOwnCmds[0] = "exit"; 
-	ListOfOwnCmds[1] = "cd"; 
-	ListOfOwnCmds[2] = "help"; 
-	ListOfOwnCmds[3] = "hello"; 
-
-	for (i = 0; i < NoOfOwnCmds; i++) { 
-		if (strcmp(parsed[0], ListOfOwnCmds[i]) == 0) { 
-			switchOwnArg = i + 1; 
-			break; 
-		} 
-	} 
-
-	switch (switchOwnArg) { 
-	case 1: 
-		printf("\nGoodbye\n"); 
-		exit(0); 
-	case 2: 
-		chdir(parsed[1]); 
-		return 1; 
-	case 3: 
-		openHelp(); 
-		return 1; 
-	case 4: 
-		username = getenv("USER"); 
-		printf("\nHello %s.\nMind that this is "
-			"not a place to play around."
-			"\nUse help to know more..\n", 
-			username); 
-		return 1; 
-	default: 
-		break; 
-	} 
-
-	return 0; 
-} 
-
-// function for finding pipe 
-int parsePipe(char* str, char** strpiped) 
-{ 
-	int i; 
-	for (i = 0; i < 2; i++) { 
-		strpiped[i] = strsep(&str, "|"); 
-		if (strpiped[i] == NULL) 
-			break; 
-	} 
-
-	if (strpiped[1] == NULL) 
-		return 0; // returns zero if no pipe is found. 
-	else { 
-		return 1; 
-	} 
-} 
-
-// function for parsing command words 
-void parseSpace(char* str, char** parsed) 
-{ 
-	int i; 
-
-	for (i = 0; i < MAXLIST; i++) { 
-		parsed[i] = strsep(&str, " "); 
-
-		if (parsed[i] == NULL) 
-			break; 
-		if (strlen(parsed[i]) == 0) 
-			i--; 
-	} 
-} 
-
+//To process the string that user enters into terminal
 int processString(char* str, char** parsed, char** parsedpipe) 
 { 
-
 	char* strpiped[2]; 
 	int piped = 0; 
-
 	piped = parsePipe(str, strpiped); 
 
 	if (piped) { 
@@ -234,10 +317,8 @@ int processString(char* str, char** parsed, char** parsedpipe)
 		parseSpace(strpiped[1], parsedpipe); 
 
 	} else { 
-
 		parseSpace(str, parsed); 
 	} 
-
 	if (ownCmdHandler(parsed)) 
 		return 0; 
 	else
@@ -249,6 +330,14 @@ int main()
 	char inputString[MAXCOM], *parsedArgs[MAXLIST]; 
 	char* parsedArgsPiped[MAXLIST]; 
 	int execFlag = 0; 
+	int i;
+	int result;
+  	int block;
+  	int output;
+  	int input;
+  	char *output_filename;
+  	char *input_filename;
+
 	init_shell(); 
 
 	while (1) { 
@@ -260,14 +349,47 @@ int main()
 		// process 
 		execFlag = processString(inputString, 
 		parsedArgs, parsedArgsPiped); 
+
+		// Check for an ampersand
+		block = (ampersand(parsedArgs) == 0);
+
+		// Check for redirected input
+		input = redirect_input(parsedArgs, &input_filename);
+
+		switch(input) {
+		case -1:
+		printf("Syntax error!\n");
+		continue;
+		break;
+		case 0:
+		break;
+		case 1:
+		printf("Redirecting input from: %s\n", input_filename);
+		break;
+		}
+
+		// Check for redirected output
+		output = redirect_output(parsedArgs, &output_filename);
+
+		switch(output) {
+		case -1:
+		printf("Syntax error!\n");
+		continue;
+		break;
+		case 0:
+		break;
+		case 1:
+		printf("Redirecting output to: %s\n", output_filename);
+		break;
+		}
+
 		// execflag returns zero if there is no command 
 		// or it is a builtin command, 
 		// 1 if it is a simple command 
 		// 2 if it is including a pipe. 
-
 		// execute 
 		if (execFlag == 1) 
-			execArgs(parsedArgs); 
+			execArgs(parsedArgs,block,input,input_filename,output,output_filename); 
 
 		if (execFlag == 2) 
 			execArgsPiped(parsedArgs, parsedArgsPiped); 
