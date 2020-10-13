@@ -6,8 +6,7 @@
 #include<sys/types.h> 
 #include<sys/wait.h> 
 #include<readline/readline.h> 
-#include<readline/history.h> 
-
+#include<readline/history.h>
 #define MAXCOM 1000 // max number of letters to be supported 
 #define MAXLIST 100 // max number of commands to be supported 
 
@@ -39,6 +38,18 @@ int takeInput(char* str)
 	if (strlen(buf) != 0) { 
 		add_history(buf); 
 		strcpy(str, buf); 
+		return 0; 
+	} else { 
+		return 1; 
+	} 
+} 
+
+int takeBatchInput(char* str, char* line) 
+{ 
+	 
+	if (strlen(line) != 0) { 
+		add_history(line); 
+		strcpy(str, line); 
 		return 0; 
 	} else { 
 		return 1; 
@@ -94,7 +105,7 @@ void execArgsPiped(char** parsed, char** parsedpipe)
 	if (p1 == 0) { 
 		// Child 1 executing.. 
 		// It only needs to write at the write end 
-		close(pipefd[0]); 
+		close(pipefd[0]);
 		dup2(pipefd[1], STDOUT_FILENO); 
 		close(pipefd[1]); 
 
@@ -244,33 +255,62 @@ int processString(char* str, char** parsed, char** parsedpipe)
 		return 1 + piped; 
 } 
 
-int main() 
+int main(int argc, char *argv[]) 
 { 
 	char inputString[MAXCOM], *parsedArgs[MAXLIST]; 
 	char* parsedArgsPiped[MAXLIST]; 
 	int execFlag = 0; 
-	init_shell(); 
+	init_shell();
+	
+	if(argc >1){
+		FILE*infile;
+		char * line = NULL;
+		int len =0;
+		infile = fopen(argv[1], "r");
+		if (infile == NULL){
+			exit(EXIT_FAILURE);
+		}
+		while ((getline(&line, &len, infile)) != -1) {
+			printf("%s\n",line);
+			if (takeBatchInput(inputString, line)){
+				continue;
+			}
+			execFlag = processString(inputString, 
+			parsedArgs, parsedArgsPiped); 
+			// execflag returns zero if there is no command 
+			// or it is a builtin command, 
+			// 1 if it is a simple command 
+			// 2 if it is including a pipe. 
 
-	while (1) { 
-		// print shell line 
-		printDir(); 
-		// take input 
-		if (takeInput(inputString)) 
-			continue; 
-		// process 
-		execFlag = processString(inputString, 
-		parsedArgs, parsedArgsPiped); 
-		// execflag returns zero if there is no command 
-		// or it is a builtin command, 
-		// 1 if it is a simple command 
-		// 2 if it is including a pipe. 
+			// execute 
+			if (execFlag == 1) 
+				execArgs(parsedArgs); 
 
-		// execute 
-		if (execFlag == 1) 
-			execArgs(parsedArgs); 
+			if (execFlag == 2) 
+				execArgsPiped(parsedArgs, parsedArgsPiped);
+		}
+	} else{ 
+		while (1) { 
+			// print shell line 
+			printDir(); 
+			// take input 
+			if (takeInput(inputString)) 
+				continue; 
+			// process 
+			execFlag = processString(inputString, 
+			parsedArgs, parsedArgsPiped); 
+			// execflag returns zero if there is no command 
+			// or it is a builtin command, 
+			// 1 if it is a simple command 
+			// 2 if it is including a pipe. 
 
-		if (execFlag == 2) 
-			execArgsPiped(parsedArgs, parsedArgsPiped); 
-	} 
+			// execute 
+			if (execFlag == 1) 
+				execArgs(parsedArgs); 
+
+			if (execFlag == 2) 
+				execArgsPiped(parsedArgs, parsedArgsPiped); 
+		}
+	}
 	return 0; 
 } 
