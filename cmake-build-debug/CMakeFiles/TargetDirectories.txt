@@ -1,0 +1,3 @@
+/Users/nylandsidifall/Desktop/AggieShell_JoNy/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/Users/nylandsidifall/Desktop/AggieShell_JoNy/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/nylandsidifall/Desktop/AggieShell_JoNy/cmake-build-debug/CMakeFiles/AggieShell_JoNy.dir
