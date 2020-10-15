@@ -33,7 +33,6 @@ void init_shell()
 int takeInput(char* str) 
 { 
 	char* buf; 
-
 	buf = readline("\nash> "); 
 	if (strlen(buf) != 0) { 
 		add_history(buf); 
@@ -44,9 +43,9 @@ int takeInput(char* str)
 	} 
 } 
 
+//Take in the batch input
 int takeBatchInput(char* str, char* line) 
 { 
-	 
 	if (strlen(line) != 0) { 
 		add_history(line); 
 		strcpy(str, line); 
@@ -116,7 +115,6 @@ void execArgsPiped(char** parsed, char** parsedpipe)
 	} else { 
 		// Parent executing 
 		p2 = fork(); 
-
 		if (p2 < 0) { 
 			printf("\nCould not fork"); 
 			return; 
@@ -164,6 +162,7 @@ int ownCmdHandler(char** parsed)
 	char* ListOfOwnCmds[NoOfOwnCmds]; 
 	char* username; 
 
+//list of basic command
 	ListOfOwnCmds[0] = "exit"; 
 	ListOfOwnCmds[1] = "cd"; 
 	ListOfOwnCmds[2] = "help"; 
@@ -176,6 +175,7 @@ int ownCmdHandler(char** parsed)
 		} 
 	} 
 
+//switch statements of commands
 	switch (switchOwnArg) { 
 	case 1: 
 		printf("\nGoodbye\n"); 
@@ -196,25 +196,64 @@ int ownCmdHandler(char** parsed)
 	default: 
 		break; 
 	} 
-
 	return 0; 
 } 
 
 // function for finding pipe 
 int parsePipe(char* str, char** strpiped) 
 {
-
 	int i; 
 	for (i = 0; i < 2; i++) { 
 		strpiped[i] = strsep(&str, "|"); 
 		if (strpiped[i] == NULL) 
 			break; 
 	} 
-
-	if (strpiped[1] == NULL) 
+	//printf("Inside pipe ->");
+	if (strpiped[1] == NULL) {
+		//printf("Couldn't find pipe \n");
 		return 0; // returns zero if no pipe is found. 
+	}	
 	else { 
-		return 1; 
+		//printf("Found pipe \n");
+		return 1; //Pipe was found
+	} 
+} 
+
+// function for finding parallel
+int parseParallel(char* str, char** strpiped) 
+{
+	int i; 
+	for (i = 0; i < 2; i++) { 
+		strpiped[i] = strsep(&str, "&"); 
+		if (strpiped[i] == NULL) 
+			break;
+	}
+		//printf("Inside parallel ->");
+	if (strpiped[1] == NULL) {
+		//printf("Couldn't find parallel \n");
+		return 0; // returns zero if no & is found. 
+	} else { 
+		//printf("Found parallel \n");
+		return 1 + 1;
+	} 
+} 
+
+// function for finding >>
+int parseRedirect(char* str, char** strpiped) 
+{
+	int i; 
+	for (i = 0; i < 2; i++) { 
+		strpiped[i] = strsep(&str, ">>"); 
+		if (strpiped[i] == NULL) 
+			break;
+	}
+	printf("Inside redirect ->");
+	if (strpiped[1] == NULL) {
+		//printf("Couldn't find redirect \n");
+		return 0; // returns zero if no & is found. 	
+	 } else { 
+		//printf("Found redirect \n");
+		return 1 + 2;
 	} 
 } 
 
@@ -233,23 +272,43 @@ void parseSpace(char* str, char** parsed)
 	} 
 } 
 
-
-
 int processString(char* str, char** parsed, char** parsedpipe) 
 { 
 	char* strpiped[2]; 
-	int piped = 0; 
-	piped = parsePipe(str, strpiped); 
-	if (piped) { 
+	int piped = 0;     
+	int parallel= 0;   
+	int redirect = 0;  
+
+	piped = parsePipe(str, strpiped); 			//2 pipe flag returned
+	parallel = parseParallel(str, strpiped); 	//3 parallel flag returned
+	redirect = parseRedirect(str, strpiped); 	//4 redirect flag returned
+
+	
+
+	if (piped > 0) { 
+		parseSpace(strpiped[0], parsed); 
+		parseSpace(strpiped[1], parsedpipe); 
+	} else if(parallel > 1){
+		parseSpace(strpiped[0], parsed); 
+		parseSpace(strpiped[1], parsedpipe); 
+	} else if(redirect > 2){
 		parseSpace(strpiped[0], parsed); 
 		parseSpace(strpiped[1], parsedpipe); 
 	} else { 
 		parseSpace(str, parsed); 
 	} 
-	if (ownCmdHandler(parsed)) 
+
+	if (ownCmdHandler(parsed)) {
 		return 0; 
-	else
-		return 1 + piped; 
+	} else {
+		if(redirect == 4){
+			return 1 + redirect;
+		}else if(parallel == 3){
+			return 1 + parallel;
+		}else{
+			return 1 + piped; 
+		}
+	}
 } 
 
 int main(int argc, char *argv[]) 
@@ -279,11 +338,15 @@ int main(int argc, char *argv[])
 			// 1 if it is a simple command 
 			// 2 if it is including a pipe. 
 
-			// execute 
-			if (execFlag == 1) 
+			if (execFlag == 1) // execute normal command
 				execArgs(parsedArgs); 
-
-			if (execFlag == 2) 
+			if (execFlag == 2) // execute pipe
+				execArgsPiped(parsedArgs, parsedArgsPiped);
+			if (execFlag == 3) // execute parallel
+				printf("Inside parallel execution");
+				execArgsPiped(parsedArgs, parsedArgsPiped);
+			if (execFlag == 4) // execute redirect
+				printf("Inside redirect execution");
 				execArgsPiped(parsedArgs, parsedArgsPiped);
 		}
 	} else{ 
@@ -301,12 +364,16 @@ int main(int argc, char *argv[])
 			// 1 if it is a simple command 
 			// 2 if it is including a pipe. 
 
-			// execute 
-			if (execFlag == 1) 
+			if (execFlag == 1) // execute normal command
 				execArgs(parsedArgs); 
-
-			if (execFlag == 2) 
-				execArgsPiped(parsedArgs, parsedArgsPiped); 
+			if (execFlag == 2) // execute pipe
+				execArgsPiped(parsedArgs, parsedArgsPiped);
+			if (execFlag == 3) // execute parallel
+				printf("Inside parallel execution");
+				execArgsPiped(parsedArgs, parsedArgsPiped);
+			if (execFlag == 4) // execute redirect
+				printf("Inside redirect execution");
+				execArgsPiped(parsedArgs, parsedArgsPiped);
 		}
 	}
 	return 0; 
